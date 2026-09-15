@@ -1,3 +1,15 @@
+## C# Specifics
+
+### Why?
+
+1. More user-friendly interface, due to all types involved *being* C# types, instead of having to wrap GDScript types. Additionally, I've introduced additional methods on `ResourceGroup` that provide access to an `IEnumerable` of resources, providing more flexibility in most use cases.
+2. Improved performance, thanks to the compiled nature of the language, as well as an earlier transition to C#. Additionally, I've parallelized the resource group building, speeding it up by a factor of 2 (in my limited, non-representative testing).
+3. GDScript suffers from [a severe ACE vulnerability](https://github.com/godotengine/godot-proposals/issues/4925) when loading untrusted resources. As such, disabling it entirely is advisable for projects not utilizing it. Dependencies relying on it make this impossible.
+4. The original plugin was causing spurious `ParserError`s for me, which became really annoying over time.
+
+> [!WARNING]
+> Resource Group resources from the GDScript version of the addon are not directly compatible, as property name casing has changed. If there is any interest in this project I may consider looking into assuring compatibility.
+
 # Godot Resource Groups
 
 _This library is still quite new and has not seen much use yet. While it works reasonably well, there may still be bugs. Please report any issues you find._
@@ -26,17 +38,6 @@ You can also download a ZIP file of this repository from the [release page](http
 After you installed it, make sure you enable the plugin in the project settings:
 
 ![Enabling the plugin in the project settings](manual/images/enable_the_plugin.png)
-
-
-### Installation with C#
-
-If you want to use this library with C#, make sure you are using the .NET version of Godot 4. This can be downloaded from the [Godot download page](https://godotengine.org/download). The standard version of Godot 4 does not support C#. If you got Godot from Steam, you have the standard version and need to download the .NET version separately from the Godot website. There are additional installation steps for the Godot .NET version, so make sure you follow the instructions on the [Godot documentation](https://docs.godotengine.org/en/stable/tutorials/scripting/c_sharp/c_sharp_basics.html).
-
-After you installed the plugin as described above, you may need to initialize your C# project if you haven't already done so. You can do this by going to the menu _Project_ -> _Tools_ -> _C#_ -> _Create C# solution_.
-
-![Create C# solution](manual/images/create_csharp_solution.png)
-
-> ⚠️ **Note**: the C# API is currently experimental and may change in the future. Please give it a try and let me know if you encounter any issues.
 
 
 ## Usage
@@ -76,52 +77,24 @@ You can manually rebuild all resource groups using the main menu entry _Project 
 
 To load resources from a resource group, you first must load the resource group.
 
-```gdscript
-var resource_group:ResourceGroup = load("res://path/to/resource_group.tres")
-```
-
-Since ResourceGroups are defined in GDScript you can't use them directly in C#. Therefore this library provides a C# wrapper around the GDScript ResourceGroup class. You can load a resource group in C# like this:
-
 ```csharp
-var resourceGroup = ResourceGroup.Of("res://path/to/resource_group.tres");
+var resourceGroup = GD.Load<ResourceGroup>("res://path/to/resource_group.tres");
 ``` 
 
 Now you can load all resources in the resource group with a single line:
-
-```gdscript
-var resources = resource_group.load_all()
-```
-
-in C#:
 
 ```csharp
 var resources = resourceGroup.LoadAll();
 ```
 
-This will return an array of all resources in the resource group. The resources will be loaded if they are not already loaded. If you only need a subset of the resources, you can use the `load_matching` method instead:
-
-```gdscript
-# load all PNG files, except those that contain "monochrome" in their name
-var resources = resource_group.load_matching(["*.png"], ["*monochrome*.png"])
-```
-
-in C#:
+This will return a List of all resources in the resource group. The resources will be loaded if they are not already loaded. If you only need a subset of the resources, you can use the `LoadMatching` method instead:
 
 ```csharp
 // load all PNG files, except those that contain "monochrome" in their name
-var resources = resourceGroup.LoadMatching(new []{"*.png"}, new []{"*monochrome*.png"});
+var resources = resourceGroup.LoadMatching(["*.png"], ["*monochrome*.png"]);
 ```
 
 If you want to use type safe arrays, you can also use the type safe variants:
-	
-```gdscript
-# declare a type safe array
-var images:Array[Texture2D] = []
-# fills the array with the resources from the resource group
-resource_group.load_all_into(images)
-```
-
-in C#:
 
 ```csharp
 // declare a typed list
@@ -130,33 +103,11 @@ var images = new List<Texture2D>();
 resourceGroup.LoadAllInto(images);
 ```
 
-There are also type safe variants for `load_matching` in GDScript and C# which work similarly.
+There are also type safe variants for `LoadMatching` which work similarly.
 
 ### Loading resources in the background
 
-Loading resources can take a while, especially if you have a lot of resources or if the resources are large. This can cause stuttering in your game. To avoid this, you can load resources in the background, starting with version 0.3.0 of this library. To load all resources in the background, use the `load_all_in_background` method:
-
-```gdscript
-var _loader:ResourceGroupBackgroundLoader = null
-
-func _ready():
-	_loader = resource_group.load_all_in_background(on_resource_loaded)
-
-func on_resource_loaded(info:ResourceGroupBackgroundLoader.ResourceLoadingInfo):
-	print("Resource loading succeeded: ", info.success) # will be false if loading failed, true otherwise
-	print("Resource loaded: ", info.resource) # will be null if loading failed
-	print("Resource path: ", info.path) # the path of the resource, will always be set, even if loading failed
-	print("Progress: ", info.progress) # the overall progress of the loading operation, between 0 and 1
-	print("Is last resource: ", info.last) # will be true if is the last resource that has been loaded
-
-func _on_cancel_button_pressed():
-	# loading can be cancelled at any time by calling cancel on the loader
-	_loader.cancel()
-```
-
-**Important:**: you need to retain a reference to the background loader during the loading process. Otherwise Godot will free the resource loader and your loading will never finish. In general you will want to do this anyway, to allow the user to cancel the loading process.
-
-This works similarly in C#:
+Loading resources can take a while, especially if you have a lot of resources or if the resources are large. This can cause stuttering in your game. To avoid this, you can load resources in the background, starting with version 0.3.0 of this library. To load all resources in the background, use the `LoadAllInBackground` method:
 
 ```csharp
 private ResourceGroupBackgroundLoader _loader;
@@ -181,9 +132,11 @@ public void _OnCancelButtonPressed()
 	_loader.Cancel();
 }
 ```
-Also check out the loading examples for [GDScript](godot_resource_groups_examples/example_background_gdscript) and [C#](godot_resource_groups_examples/example_background_csharp) for more details.
 
-There is also a variant `load_matching_in_background` which works similarly, but only loads a subset of the resources.
+> [!IMPORTANT]
+> You need to retain a reference to the background loader during the loading process. Otherwise Godot will free the resource loader and your loading will never finish. In general you will want to do this anyway, to allow the user to cancel the loading process.
+
+There is also a variant `LoadMatchingInBackground` which works similarly, but only loads a subset of the resources.
 
 ## Using in plugins
 
@@ -191,17 +144,11 @@ There is also a variant `load_matching_in_background` which works similarly, but
 
 If you create resources using editor scripting, you can trigger a rebuild of all resource groups from your plugin:
 
-```gdscript
-ResourceGroupsPlugin.rebuild_resource_groups()
-```
-
-Similarly from C#:
-
 ```csharp
 ResourceGroupsPlugin.RebuildResourceGroups();
 ```
 
-Please note, that this will only work in the editor. If you call this function at runtime it will print an error message and do nothing.
+Please note, that this will only work in the editor. Any code referencing this type must be surrounded by an `#if TOOLS`.
 
 ## FAQ
 
