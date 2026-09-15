@@ -51,7 +51,7 @@ public partial class ResourceGroup : Resource {
     /// Enumerates all resources in this resource group. Validates that all resources are of the specified type.
     /// If an item is not of the required type, an error will be printed and the item is skipped.
     /// </summary>
-    public IEnumerable<T> EnumerateAll<T>() where T : Resource
+    public IEnumerable<T> EnumerateAll<T>() where T : class
         => EnumerateAll()
             .Where(ValidateResourceType<T>)
             .Cast<T>();
@@ -81,7 +81,7 @@ public partial class ResourceGroup : Resource {
     /// the item is not of the required type, an error will be printed and
     /// the item is skipped.
     /// </summary>
-    public void LoadAllInto<T>(ICollection<T> destination) where T : Resource {
+    public void LoadAllInto<T>(ICollection<T> destination) where T : class {
         foreach (var item in EnumerateAll<T>()) {
             destination.Add(item);
         }
@@ -110,7 +110,7 @@ public partial class ResourceGroup : Resource {
     /// an error will be printed and the item is skipped.
     /// </summary>
     public IEnumerable<T> EnumerateMatching<T>(IEnumerable<string> includePatterns,
-        IEnumerable<string> excludePatterns) where T : Resource
+        IEnumerable<string> excludePatterns) where T : class
         => EnumerateMatching(includePatterns, excludePatterns)
             .Where(ValidateResourceType<T>)
             .Cast<T>();
